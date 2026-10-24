@@ -6,7 +6,7 @@ class EmbeddingLayer:
         self.input = None
 
         # Gradients
-        self.grad_embeddings = np.zeroes(self.embeddings.shape)
+        self.grad_embeddings = np.zeros(self.embeddings.shape)
 
     def forward(self, inputs):
         self.input = inputs
@@ -33,6 +33,8 @@ class Softmax:
         self.softmax_out = softmax_out
         return softmax_out
 
-        
+    def backward(self, prev_grad):
+        return prev_grad * self.softmax_out - self.softmax_out * np.sum(self.softmax_out * prev_grad, axis=1, keepdims=True)
+
 
     
