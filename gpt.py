@@ -37,4 +37,40 @@ class Softmax:
         return prev_grad * self.softmax_out - self.softmax_out * np.sum(self.softmax_out * prev_grad, axis=1, keepdims=True)
 
 
-    
+class CrossEntropyWithSoftmax:
+    def __init__(self):
+        self.lse = None
+        self.logits_flat = None
+        self.labels_flat = None
+        self.B = self.T = self.V = None
+
+    def forward(self, logits, labels):
+        assert len(logits.shape) == 3
+        B, T, V = logits.shape
+
+        logits_flat = np.reshape(logits, (B * T, V))
+        labels_flat = np.reshape(labels, (B * T))
+
+        # Numerically stable cross entropy loss (log-sum-exp trick)
+        max_logit = np.max(logits_flat, axis=1, keepdims=True)
+        diff = logits_flat - max_logit
+
+        lse = max_logit + np.log(np.sum(np.exp(diff), axis=1, keepdims=True))
+        log_softmax = np.expand_dims(logits_flat[np.arange(B * T), labels_flat], axis=1) - lse
+
+        self.lse = lse
+        self.logits_flat = logits_flat
+        self.labels_flat = labels_flat
+        self.B, self.T, self.V = B, T, V
+
+        return -np.sum(log_softmax) / logits_flat.shape[0]
+
+    def backward(self):
+        N = self.B * self.T
+        softmax = np.exp(self.logits_flat - self.lse)        # (N, V)
+        softmax[np.arange(N), self.labels_flat] -= 1         # subtract one-hot
+        grad = softmax / N
+        return grad.reshape(self.B, self.T, self.V)
+
+    def get_name(self):
+        return "CrossEntropyWithSoftmax"
