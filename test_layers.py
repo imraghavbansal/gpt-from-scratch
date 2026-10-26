@@ -1,62 +1,89 @@
 import numpy as np
+from gpt import EmbeddingLayer, Softmax, CrossEntropyWithSoftmax
 
-# from gpt import EmbeddingLayer, Softmax
-
-# # 1. Softmax rows sum to 1
-# sm = Softmax()
-# x = np.random.randn(3, 5)
-# out = sm.forward(x)
-# print("row sums:", out.sum(axis=1))
-
-# # 2. Shift invariance + stability with huge values
-# print("stable:", np.allclose(sm.forward(x), sm.forward(x + 1000)))
-
-# # 3. Gradient check for softmax backward
-# W = np.random.randn(3, 5)           # fixed weights, so loss = sum(softmax(x) * W)
-# sm.forward(x)
-# analytic = sm.backward(W)           # dL/dout = W
-
-# numeric = np.zeros_like(x)
-# eps = 1e-5
-# for i in range(x.shape[0]):
-#     for j in range(x.shape[1]):
-#         xp, xm = x.copy(), x.copy()
-#         xp[i, j] += eps
-#         xm[i, j] -= eps
-#         numeric[i, j] = (np.sum(sm.forward(xp) * W) - np.sum(sm.forward(xm) * W)) / (2 * eps)
-
-# print("grad check:", np.allclose(analytic, numeric, atol=1e-6))
-
-# # 4. Embedding: repeated token gradients add up
-# emb = EmbeddingLayer(10, 4)
-# ids = np.array([[1, 2, 1]])
-# emb.forward(ids)
-# emb.backward(np.ones((1, 3, 4)))
-# print("token 1 grad (expect 2s):", emb.grad_embeddings[1])
+np.random.seed(0)  # reproducible tests
+EPS = 1e-5
 
 
-from gpt import CrossEntropyWithSoftmax
+def numeric_grad(f, x):
+    """Numerical gradient of scalar function f at x (central differences)."""
+    g = np.zeros_like(x)
+    for idx in np.ndindex(*x.shape):
+        xp, xm = x.copy(), x.copy()
+        xp[idx] += EPS
+        xm[idx] -= EPS
+        g[idx] = (f(xp) - f(xm)) / (2 * EPS)
+    return g
 
-print("--- cross entropy ---")
-B, T, V = 2, 3, 5
-ce = CrossEntropyWithSoftmax()
-logits = np.random.randn(B, T, V)
-labels = np.random.randint(0, V, size=(B, T))
 
-# 1. Uniform logits -> loss should be log(V)
-print("uniform loss ok:", np.isclose(ce.forward(np.zeros((B, T, V)), labels), np.log(V)))
+def test_softmax():
+    sm = Softmax()
+    x = np.random.randn(3, 5)
 
-# 2. Stability: huge logits must not give nan/inf
-print("stable:", np.isfinite(ce.forward(logits * 1000, labels)))
+    # rows are valid probabilities
+    out = sm.forward(x)
+    assert np.allclose(out.sum(axis=1), 1), "rows must sum to 1"
+    assert np.all(out > 0), "probabilities must be positive"
 
-# 3. Gradient check
-ce.forward(logits, labels)
-analytic = ce.backward()
-numeric = np.zeros_like(logits)
-eps = 1e-5
-for idx in np.ndindex(*logits.shape):
-    lp, lm = logits.copy(), logits.copy()
-    lp[idx] += eps
-    lm[idx] -= eps
-    numeric[idx] = (ce.forward(lp, labels) - ce.forward(lm, labels)) / (2 * eps)
-print("grad check:", np.allclose(analytic, numeric, atol=1e-6))
+    # shift invariance + stability with huge values
+    assert np.allclose(sm.forward(x), sm.forward(x + 1000)), "must be shift invariant"
+    assert np.all(np.isfinite(sm.forward(x * 1000))), "must not overflow"
+
+    # gradient check: loss = sum(softmax(x) * W)
+    W = np.random.randn(3, 5)
+    sm.forward(x)
+    analytic = sm.backward(W)
+    numeric = numeric_grad(lambda z: np.sum(sm.forward(z) * W), x)
+    assert np.allclose(analytic, numeric, atol=1e-6), "softmax grad check failed"
+    print("softmax: ok")
+
+
+def test_embedding():
+    emb = EmbeddingLayer(10, 4)
+    ids = np.array([[1, 2, 1]])
+
+    out = emb.forward(ids)
+    assert out.shape == (1, 3, 4), "output shape must be (batch, seq, dim)"
+    assert np.allclose(out[0, 0], emb.embeddings[1]), "lookup must return the right row"
+
+    # a token that appears twice gets its gradients added
+    emb.backward(np.ones((1, 3, 4)))
+    assert np.allclose(emb.grad_embeddings[1], 2), "repeated token grads must add up"
+    assert np.allclose(emb.grad_embeddings[2], 1), "single token grad must be 1"
+    assert np.allclose(emb.grad_embeddings[0], 0), "unused token grad must be 0"
+    print("embedding: ok")
+
+
+def test_cross_entropy():
+    B, T, V = 2, 3, 5
+    ce = CrossEntropyWithSoftmax()
+    logits = np.random.randn(B, T, V)
+    labels = np.random.randint(0, V, size=(B, T))
+
+    # uniform logits -> loss = log(V)
+    uniform = ce.forward(np.zeros((B, T, V)), labels)
+    assert np.isclose(uniform, np.log(V)), "uniform logits -> loss = log(V)"
+
+    # matches the naive softmax -> log -> pick formula on safe inputs
+    flat = logits.reshape(B * T, V)
+    e = np.exp(flat - flat.max(axis=1, keepdims=True))
+    probs = e / e.sum(axis=1, keepdims=True)
+    naive = -np.mean(np.log(probs[np.arange(B * T), labels.reshape(-1)]))
+    assert np.isclose(ce.forward(logits, labels), naive), "must match naive cross-entropy"
+
+    # stays finite with huge logits
+    assert np.isfinite(ce.forward(logits * 1000, labels)), "must stay finite"
+
+    # gradient check
+    ce.forward(logits, labels)
+    analytic = ce.backward()
+    numeric = numeric_grad(lambda z: ce.forward(z, labels), logits)
+    assert np.allclose(analytic, numeric, atol=1e-6), "cross-entropy grad check failed"
+    print("cross-entropy: ok")
+
+
+if __name__ == "__main__":
+    test_softmax()
+    test_embedding()
+    test_cross_entropy()
+    print("all tests passed")
