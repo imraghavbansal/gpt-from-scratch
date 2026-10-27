@@ -2,10 +2,6 @@
 
 Building a GPT from scratch in pure **NumPy**, one component at a time, to understand how every layer works: forward pass, backward pass, and the math behind it. No PyTorch, no autograd.
 
-## Credit
-
-This project follows **[How I Built GPT from Scratch in Numpy](https://www.youtube.com/watch?v=3LWHYlmyqZ0)** by [Green Code](https://www.youtube.com/@GreenCodeCodes). The code here is my own implementation written while following along, and all credit for the explanations and structure goes to the original video.
-
 ## Roadmap
 
 Progress follows the video chapters. Checked items are done and pushed.
