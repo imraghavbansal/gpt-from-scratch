@@ -45,8 +45,3 @@ pip install numpy
 python gpt.py
 ```
 
-## Notes
-
-Each concept has notes in `docs/` covering **what** it is, **why** GPT needs it, and **how** it's implemented.
-
-
