@@ -8,7 +8,7 @@ Progress follows the video chapters. Checked items are done and pushed.
 
 | # | Component | What it does | Status |
 |---|-----------|--------------|--------|
-| 1 | Embedding layer | Turns token IDs into vectors | [ ] |
+| 1 | Embedding layer | Turns token IDs into vectors | [x] |
 | 2 | Softmax (forward) | Turns logits into probabilities | [x] |
 | 3 | Softmax (numerically stable) | Subtracts max logit so `exp()` can't overflow | [x] |
 | 4 | Softmax (backward) | Gradient through softmax | [ ] |
