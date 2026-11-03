@@ -13,7 +13,7 @@ Progress follows the video chapters. Checked items are done and pushed.
 | 3 | Softmax (numerically stable) | Subtracts max logit so `exp()` can't overflow | [x] |
 | 4 | Softmax (backward) | Gradient through softmax | [x] |
 | 5 | Cross-entropy loss | Measures how wrong the predicted probabilities are | [x] |
-| 6 | Stable cross-entropy | Log-sum-exp trick | [ ] |
+| 6 | Stable cross-entropy | Log-sum-exp trick | [x] |
 | 7 | Self-attention (single, then all embeddings) | Each token looks at the others | [ ] |
 | 8 | Attention with trainable weights | Q, K, V projections | [ ] |
 | 9 | Causal attention | Mask so tokens can't see the future | [ ] |
